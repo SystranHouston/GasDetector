@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Four-Gas Monitor Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15171b; --panel:#1e2229; --panel2:#242932; --line:#2e343e;
+  --text:#e9ecef; --muted:#98a1ab;
+  --amber:#f5a300; --ok:#7fd13b; --bad:#ee5560; --warn:#f5c518;
+  --o2:#3d7bf0; --lel:#e5484d; --co:#46c24e; --h2s:#f5921e;
+  --lcd:#eef1ec; --dev:#111318; --dev2:#1b1e24;
+  --r:14px;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0; background:var(--bg); color:var(--text);
+  font-family:'IBM Plex Sans',system-ui,sans-serif; overscroll-behavior:none;}
+body{min-height:100dvh;}
+button{font-family:inherit; touch-action:manipulation;}
+
+.screen{display:none; min-height:100dvh; flex-direction:column;}
+.screen.active{display:flex;}
+.wrap{width:100%; max-width:460px; margin:0 auto; padding:16px; flex:1; display:flex; flex-direction:column;}
+
+/* ---------- HOME ---------- */
+.eyebrow{font-family:'Chakra Petch'; font-size:12px; letter-spacing:.22em; color:var(--amber);
+  text-transform:uppercase; margin:18px 0 6px;}
+h1{font-family:'Chakra Petch'; font-weight:700; font-size:30px; line-height:1.1; margin:0 0 10px;}
+.sub{color:var(--muted); font-size:14.5px; line-height:1.5; margin-bottom:22px;}
+.mode-btn{display:block; width:100%; text-align:left; background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--r); padding:16px; margin-bottom:12px; color:var(--text); cursor:pointer;}
+.mode-btn:active{background:var(--panel2);}
+.mode-btn .m-name{font-family:'Chakra Petch'; font-weight:600; font-size:17px; display:flex; align-items:center; gap:8px;}
+.mode-btn .m-tag{font-size:10.5px; font-family:'Chakra Petch'; letter-spacing:.14em; text-transform:uppercase;
+  padding:2px 7px; border-radius:4px; border:1px solid var(--line); color:var(--muted);}
+.mode-btn .m-desc{color:var(--muted); font-size:13.5px; margin-top:5px; line-height:1.45;}
+.home-foot{color:#5b636d; font-size:12px; margin-top:auto; padding-top:18px; line-height:1.5;}
+
+/* ---------- SIM LAYOUT ---------- */
+.topbar{display:flex; align-items:center; justify-content:space-between; padding:12px 16px;
+  border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5;}
+.topbar .tb-mode{font-family:'Chakra Petch'; font-size:13px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber);}
+.topbar .tb-step{font-family:'IBM Plex Mono'; font-size:12px; color:var(--muted);}
+.tb-exit{background:none; border:1px solid var(--line); color:var(--muted); border-radius:8px;
+  padding:5px 11px; font-size:12.5px; cursor:pointer;}
+
+/* ---------- DEVICE ---------- */
+.stage{display:flex; justify-content:center; padding:14px 0 6px;}
+.device{width:min(64vw,235px); background:linear-gradient(180deg,#16181d,#0d0f13);
+  border:2px solid #060708; border-radius:26px; padding:10px 10px 16px; position:relative;
+  box-shadow:0 14px 34px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);}
+.device::before,.device::after{content:''; position:absolute; top:56px; width:7px; height:74px;
+  background:linear-gradient(180deg,#c79a1f,#8a6a12); border-radius:4px;}
+.device::before{left:-3px;} .device::after{right:-3px;}
+.dev-light{height:10px; border-radius:6px; margin:2px 14px 8px;
+  background:#22301a; border:1px solid #060708; transition:background .3s, box-shadow .3s;}
+.dev-light.on{background:var(--ok); box-shadow:0 0 12px rgba(127,209,59,.7);}
+.dev-light.alarm{background:var(--bad); box-shadow:0 0 12px rgba(238,85,96,.8); animation:blink .5s steps(2) infinite;}
+@keyframes blink{50%{opacity:.25;}}
+.lcd{background:#0a0b0d; border-radius:8px; padding:5px; border:1px solid #060708;}
+.lcd-inner{background:var(--lcd); border-radius:5px; min-height:118px; padding:6px 7px; color:#1c1e22; position:relative;}
+.lcd-inner.off{background:#20242a;}
+.lcd-title{font-family:'Chakra Petch'; font-weight:700; font-size:8.5px; letter-spacing:.06em; text-align:center; color:#2a2d33;}
+.lcd-batt{position:absolute; top:5px; right:7px; font-family:'IBM Plex Mono'; font-size:8px; font-weight:600;}
+.lcd-grid{display:grid; grid-template-columns:1fr 1fr; margin-top:3px;}
+.lcd-cell{padding:3px 5px; border:0.5px solid #c9cdc6;}
+.lcd-cell .g-name{font-family:'Chakra Petch'; font-weight:700; font-size:9px;}
+.lcd-cell .g-val{font-family:'IBM Plex Mono'; font-weight:600; font-size:17px; text-align:center; line-height:1.15;}
+.lcd-cell .g-unit{font-size:7.5px; text-align:right; font-weight:600;}
+.c-o2{color:#2456c9;} .c-lel{color:#c1272d;} .c-co{color:#2c8f33;} .c-h2s{color:#c56a0a;}
+.lcd-boot{display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:106px;
+  font-family:'Chakra Petch'; font-weight:600; text-align:center;}
+.lcd-boot .b-big{font-size:15px;} .lcd-boot .b-small{font-size:10px; color:#555a61; margin-top:5px;}
+.lcd-boot .b-count{font-family:'IBM Plex Mono'; font-size:26px; margin-top:2px;}
+.lcd-err{color:#c1272d;}
+.dev-btnrow{display:flex; justify-content:center; gap:9px; margin:11px 0 12px;}
+.dev-key{width:46px; height:32px; border-radius:8px; background:linear-gradient(180deg,#23262c,#121419);
+  border:1px solid #060708; color:#aeb4bc; font-size:13px; display:flex; align-items:center; justify-content:center;}
+.dev-key.pwr{cursor:pointer; position:relative; overflow:hidden; touch-action:none;
+  user-select:none; -webkit-user-select:none;}
+.dev-key.pwr:active{background:#0d0f13;}
+.pwr-fill{position:absolute; left:0; bottom:0; width:100%; height:0%; background:rgba(245,163,0,.45); transition:height .1s linear;}
+.pwr-icon{position:relative; z-index:1; font-size:15px;}
+.sensor-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; padding:0 16px; justify-items:center;}
+.sensor{width:52px; height:52px; border-radius:50%; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:2.5px; border-width:4px; border-style:solid; background:#0c0d10; position:relative;
+  transition:box-shadow .25s;}
+.sensor .s-slit{width:26px; height:3.5px; border-radius:2px; background:#3a3f47;}
+.sensor .s-lab{position:absolute; top:-3px; left:50%; transform:translate(-50%,-100%);
+  font-family:'Chakra Petch'; font-weight:700; font-size:8px; letter-spacing:.05em;}
+.s-o2{border-color:var(--o2);} .s-o2 .s-lab{color:var(--o2);}
+.s-lel{border-color:var(--lel);} .s-lel .s-lab{color:var(--lel);}
+.s-co{border-color:var(--co);} .s-co .s-lab{color:var(--co);}
+.s-h2s{border-color:var(--h2s);} .s-h2s .s-lab{color:var(--h2s);}
+.sensor.flag{box-shadow:0 0 0 3px var(--warn);}
+.sensor.damaged .s-slit:nth-child(3){background:#6b3236; transform:rotate(-8deg);}
+.hold-hint{text-align:center; font-size:11.5px; color:var(--muted); margin-top:8px; font-family:'Chakra Petch'; letter-spacing:.06em;}
+
+/* ---------- COACH / FEEDBACK ---------- */
+.coach{border-radius:var(--r); padding:13px 15px; margin:12px 0 10px; font-size:14.5px; line-height:1.5;
+  background:var(--panel); border:1px solid var(--line);}
+.coach .c-tag{font-family:'Chakra Petch'; font-size:10.5px; letter-spacing:.18em; text-transform:uppercase;
+  display:block; margin-bottom:4px; color:var(--amber);}
+.coach.good{border-color:rgba(127,209,59,.5);} .coach.good .c-tag{color:var(--ok);}
+.coach.err{border-color:rgba(238,85,96,.6);} .coach.err .c-tag{color:var(--bad);}
+.coach .c-why{color:var(--muted); font-size:13px; margin-top:6px; padding-top:6px; border-top:1px dashed var(--line);}
+
+/* ---------- ACTIONS ---------- */
+.actions{display:grid; grid-template-columns:1fr 1fr; gap:9px; padding-bottom:22px;}
+.act{background:var(--panel); border:1px solid var(--line); border-radius:12px; color:var(--text);
+  padding:11px 10px; font-size:13.5px; line-height:1.3; cursor:pointer; text-align:left; min-height:52px;
+  display:flex; align-items:center; gap:8px;}
+.act:active{background:var(--panel2);}
+.act.done{border-color:rgba(127,209,59,.45); color:var(--muted);}
+.act.done::after{content:'✓'; margin-left:auto; color:var(--ok); font-weight:600;}
+.act.warned{border-color:var(--warn);}
+.act.warned::after{content:'!'; margin-left:auto; color:var(--warn); font-weight:700;}
+.act.wide{grid-column:1 / -1; justify-content:center; text-align:center;
+  font-family:'Chakra Petch'; font-weight:600; font-size:15px;}
+.act.primary{background:var(--amber); border-color:var(--amber); color:#191202;}
+.act.danger{border-color:rgba(238,85,96,.6); color:var(--bad);}
+.act:disabled{opacity:.38; pointer-events:none;}
+.act.hide{display:none;}
+
+/* ---------- CHOICES (verify / alarm) ---------- */
+.choice-list{display:flex; flex-direction:column; gap:9px; padding-bottom:22px;}
+.choice{background:var(--panel); border:1px solid var(--line); border-radius:12px; color:var(--text);
+  padding:13px 14px; font-size:14.5px; line-height:1.45; cursor:pointer; text-align:left;}
+.choice:active{background:var(--panel2);}
+
+/* ---------- POSITION OVERLAY ---------- */
+.pos-stage{display:flex; justify-content:center; padding:4px 0;}
+.pos-stage svg{width:min(70vw,250px); height:auto;}
+.pos-spot{cursor:pointer;}
+.pos-spot circle{fill:rgba(245,163,0,.14); stroke:var(--amber); stroke-width:2; stroke-dasharray:4 3;}
+.pos-spot text{fill:var(--text); font-family:'Chakra Petch'; font-size:11px; font-weight:600; text-anchor:middle;}
+.pos-spot.hit circle{fill:rgba(127,209,59,.3); stroke:var(--ok); stroke-dasharray:none;}
+.pos-spot.miss circle{fill:rgba(238,85,96,.25); stroke:var(--bad); stroke-dasharray:none;}
+
+/* ---------- RESULT ---------- */
+.res-banner{border-radius:var(--r); padding:22px 18px; text-align:center; margin:18px 0 16px;}
+.res-banner.pass{background:rgba(127,209,59,.12); border:1px solid rgba(127,209,59,.5);}
+.res-banner.fail{background:rgba(238,85,96,.1); border:1px solid rgba(238,85,96,.5);}
+.res-banner .r-big{font-family:'Chakra Petch'; font-weight:700; font-size:34px; letter-spacing:.06em;}
+.res-banner.pass .r-big{color:var(--ok);} .res-banner.fail .r-big{color:var(--bad);}
+.res-banner .r-sub{color:var(--muted); font-size:13.5px; margin-top:4px;}
+.res-item{display:flex; gap:10px; align-items:flex-start; padding:10px 4px; border-bottom:1px solid var(--line);
+  font-size:14px; line-height:1.4;}
+.res-item .ri-mark{font-weight:700; width:18px; flex-shrink:0;}
+.res-item.ok .ri-mark{color:var(--ok);} .res-item.bad .ri-mark{color:var(--bad);}
+.res-item .ri-note{color:var(--muted); font-size:12.5px; margin-top:2px;}
+.res-actions{display:flex; gap:10px; margin:20px 0 24px;}
+.res-actions .act{flex:1; justify-content:center; text-align:center;}
+
+/* sticker modal */
+.sheet-back{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:flex-end; z-index:20;}
+.sheet-back.open{display:flex;}
+.sheet{background:var(--panel); border-radius:18px 18px 0 0; width:100%; max-width:460px; margin:0 auto;
+  padding:18px 18px 26px; border-top:1px solid var(--line);}
+.sheet h3{font-family:'Chakra Petch'; margin:0 0 10px; font-size:16px;}
+.sticker{background:#f3efdf; color:#232016; border-radius:8px; padding:12px 14px;
+  font-family:'IBM Plex Mono'; font-size:13px; line-height:1.7; border:1.5px dashed #9c9270;}
+.sticker .st-head{font-weight:700; letter-spacing:.08em; font-size:11px; border-bottom:1px solid #9c9270; padding-bottom:4px; margin-bottom:6px;}
+.sheet .act{margin-top:14px; width:100%;}
+</style>
+</head>
+<body>
+
+<!-- ============ HOME ============ -->
+<section class="screen active" id="scr-home">
+  <div class="wrap">
+    <div class="eyebrow">Portable Gas Detection · Trainer</div>
+    <h1>Four-Gas Monitor Simulator</h1>
+    <p class="sub">Demonstrate the pre-use routine on a simulated O₂ / LEL / CO / H₂S monitor: inspect it, verify it's ready, power it up, and wear it in the right place.</p>
+
+    <button class="mode-btn" onclick="startMode('learn')">
+      <span class="m-name">Learn <span class="m-tag">Guided</span></span>
+      <span class="m-desc">Walk through each step with the reasoning behind it. Nothing is graded.</span>
+    </button>
+    <button class="mode-btn" onclick="startMode('practice')">
+      <span class="m-name">Practice <span class="m-tag">Strict order</span></span>
+      <span class="m-desc">Choose the next correct action. Wrong moves are blocked with immediate feedback.</span>
+    </button>
+    <button class="mode-btn" onclick="startMode('test')">
+      <span class="m-name">Test <span class="m-tag">Graded</span></span>
+      <span class="m-desc">No prompts. Do the full routine your way — the monitor may or may not be fit for service. Pass/fail at the end.</span>
+    </button>
+
+    <p class="home-foot">Simulator for classroom demonstration only. Always follow the manufacturer's manual and your site's procedures with real instruments.</p>
+  </div>
+</section>
+
+<!-- ============ SIM ============ -->
+<section class="screen" id="scr-sim">
+  <div class="topbar">
+    <span class="tb-mode" id="tbMode">Learn</span>
+    <span class="tb-step" id="tbStep"></span>
+    <button class="tb-exit" onclick="exitToHome()">Exit</button>
+  </div>
+  <div class="wrap" style="padding-top:4px;">
+
+    <div class="stage">
+      <div class="device" id="device">
+        <div class="dev-light" id="devLight"></div>
+        <div class="lcd"><div class="lcd-inner off" id="lcdInner"></div></div>
+        <div class="dev-btnrow">
+          <div class="dev-key">▼</div>
+          <div class="dev-key pwr" id="pwrBtn"><div class="pwr-fill" id="pwrFill"></div><span class="pwr-icon">⏻</span></div>
+          <div class="dev-key">▲</div>
+        </div>
+        <div class="sensor-grid">
+          <div class="sensor s-o2" id="sen-o2"><span class="s-lab">O₂</span><div class="s-slit"></div><div class="s-slit"></div><div class="s-slit"></div></div>
+          <div class="sensor s-lel" id="sen-lel"><span class="s-lab">LEL</span><div class="s-slit"></div><div class="s-slit"></div><div class="s-slit"></div></div>
+          <div class="sensor s-co" id="sen-co"><span class="s-lab">CO</span><div class="s-slit"></div><div class="s-slit"></div><div class="s-slit"></div></div>
+          <div class="sensor s-h2s" id="sen-h2s"><span class="s-lab">H₂S</span><div class="s-slit"></div><div class="s-slit"></div><div class="s-slit"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="hold-hint" id="holdHint" style="display:none;">PRESS &amp; HOLD ⏻ TO POWER ON</div>
+
+    <div class="coach" id="coach"><span class="c-tag" id="coachTag">Step</span><span id="coachText"></span><div class="c-why" id="coachWhy" style="display:none;"></div></div>
+
+    <div class="actions" id="actionArea"></div>
+    <div class="choice-list" id="choiceArea" style="display:none;"></div>
+
+    <div class="pos-stage" id="posStage" style="display:none;">
+      <svg viewBox="0 0 200 340" id="bodySvg">
+        <g fill="#2b313b" stroke="#3c434f" stroke-width="1.5">
+          <circle cx="100" cy="34" r="22"/>
+          <path d="M78 60 Q100 52 122 60 L132 74 L138 170 L124 170 L120 118 L120 190 L112 320 L96 320 L100 205 L104 320 L88 320 L80 190 L80 118 L76 170 L62 170 L68 74 Z"/>
+        </g>
+        <g class="pos-spot" data-pos="chest"><circle cx="100" cy="92" r="20"/><text x="100" y="96">Chest</text></g>
+        <g class="pos-spot" data-pos="belt"><circle cx="100" cy="182" r="18"/><text x="100" y="186">Belt</text></g>
+        <g class="pos-spot" data-pos="pocket"><circle cx="112" cy="250" r="18"/><text x="112" y="254">Pocket</text></g>
+        <g class="pos-spot" data-pos="inside"><circle cx="70" cy="130" r="18"/><text x="70" y="128">Inside</text><text x="70" y="140">jacket</text></g>
+        <g class="pos-spot" data-pos="bag"><circle cx="168" cy="220" r="20"/><text x="168" y="218">Gear</text><text x="168" y="230">bag</text></g>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RESULT ============ -->
+<section class="screen" id="scr-result">
+  <div class="wrap">
+    <div class="eyebrow" id="resMode">Test</div>
+    <div class="res-banner" id="resBanner">
+      <div class="r-big" id="resBig">PASS</div>
+      <div class="r-sub" id="resSub"></div>
+    </div>
+    <div id="resList"></div>
+    <div class="res-actions">
+      <button class="act" onclick="exitToHome()">Home</button>
+      <button class="act primary" id="resRetry">Run again</button>
+    </div>
+  </div>
+</section>
+
+<!-- sticker sheet -->
+<div class="sheet-back" id="sheetBack" onclick="closeSheet(event)">
+  <div class="sheet" onclick="event.stopPropagation()">
+    <h3 id="sheetTitle"></h3>
+    <div class="sticker" id="sheetBody"></div>
+    <button class="act primary" onclick="closeSheet()">Done</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= DATA ================= */
+const TODAY = new Date();
+function fmt(d){ return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function addDays(n){ const d=new Date(TODAY); d.setDate(d.getDate()+n); return d; }
+
+const FAULTS = ['cal-expired','bump-failed','battery-low','sensor-damaged','selftest-fail'];
+
+const CHECKS = [
+ {id:'housing', label:'Inspect housing', why:'Cracked or crushed housings can let gas bypass the sensors and break intrinsic-safety ratings.'},
+ {id:'sensors', label:'Check sensor ports', why:'A blocked or damaged port can\u2019t sample air — the display can read normal while the sensor sees nothing.'},
+ {id:'display', label:'Check display &amp; lens', why:'You have to be able to read it at a glance in the field, through gloves, glare, and grime.'},
+ {id:'battery', label:'Check battery charge', why:'A monitor that dies mid-shift protects nobody. It must last the full entry plus margin.'},
+ {id:'cal', label:'Check calibration sticker', why:'Sensors drift. Outside the calibration period the readings can\u2019t be trusted, even if they look normal.'},
+ {id:'bump', label:'Check bump test record', why:'The bump test proves the sensors actually respond to gas and the alarms actually fire.'}
+];
+
+const POSITIONS = {
+ chest:{ok:true, note:'Breathing zone — clipped to the front of your shirt, vest, or coveralls, near your nose and mouth, outside clothing.'},
+ belt:{ok:false, note:'Your belt is not your breathing zone. Gas concentration at your waist can differ from what you\u2019re inhaling.'},
+ pocket:{ok:false, note:'Inside a pocket the sensor ports are covered. The monitor can\u2019t sample the air at all.'},
+ inside:{ok:false, note:'Under clothing, sensors are blocked and the display is hidden. It must ride outside your clothing.'},
+ bag:{ok:false, note:'A monitor in your bag samples the bag, not your breathing zone, and you can\u2019t hear or see it clearly.'}
+};
+
+const ALARM_Q = {
+ q:'Mid-shift, the monitor goes into alarm. What do you do?',
+ opts:[
+  {t:'Silence the alarm and keep working if the reading drops back down', ok:false,
+   fb:'Never. An alarm means the atmosphere reached an alarm setpoint. Silencing it and staying puts you in the exposure.'},
+  {t:'Stop work immediately, leave the area, and follow your site\u2019s emergency procedures', ok:true,
+   fb:'Correct. Alarm = stop work, get out, report. Investigation happens from a safe location, per site procedure.'},
+  {t:'Hold the monitor up higher to see which sensor is alarming before deciding', ok:false,
+   fb:'No. You don\u2019t troubleshoot inside a hazardous atmosphere. Leave first — every second of delay is exposure time.'}
+ ]
+};
+
+/* ================= STATE ================= */
+let S = {};
+function newState(mode){
+  let fault = null;
+  if(mode==='test' && Math.random()<0.5){ fault = FAULTS[Math.floor(Math.random()*FAULTS.length)]; }
+  return {
+    mode, fault,
+    phase:'checks',          // checks -> power -> boot -> verify -> position -> alarm -> result
+    checksDone:new Set(),
+    learnIdx:0,
+    powered:false,
+    poweredEarly:false,      // test: powered on before all checks done
+    removedFromService:false,
+    verifyChoice:null,       // 'ready' | 'remove'
+    posFirstTap:null,
+    posMistakes:0,
+    alarmFirst:null,
+    practiceMistakes:0,
+    errors:[]                // {label, note}
+  };
+}
+
+/* ================= HELPERS ================= */
+const $ = id => document.getElementById(id);
+function show(scr){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(scr).classList.add('active'); window.scrollTo(0,0); }
+function coach(tag,text,why,kind){
+  $('coachTag').textContent = tag;
+  $('coachText').innerHTML = text;
+  const w=$('coachWhy');
+  if(why){ w.style.display='block'; w.innerHTML='<strong>Why it matters:</strong> '+why; } else { w.style.display='none'; }
+  const c=$('coach'); c.classList.remove('good','err');
+  if(kind) c.classList.add(kind);
+}
+function setStep(t){ $('tbStep').textContent=t; }
+
+/* ---------- check findings per scenario ---------- */
+function findingFor(id){
+  const f=S.fault;
+  switch(id){
+    case 'housing':
+      return {ok:true, text:'Housing: no cracks, dents, or missing parts. Clip and lanyard ring intact.'};
+    case 'sensors':
+      if(f==='sensor-damaged') return {ok:false, text:'LEL sensor port is cracked and partly crushed. This sensor cannot sample reliably.'};
+      return {ok:true, text:'All four sensor ports clear and undamaged. Nothing covering the openings.'};
+    case 'display':
+      return {ok:true, text:'Display lens clean and uncracked. Readable at arm\u2019s length.'};
+    case 'battery':
+      if(f==='battery-low') return {ok:false, text:'Charge indicator: 1 of 4 bars. Not enough for a full shift.'};
+      return {ok:true, text:'Charge indicator: 4 of 4 bars. Adequate for the shift.'};
+    case 'cal':{
+      const due = (f==='cal-expired') ? addDays(-12) : addDays(47);
+      return {ok:f!=='cal-expired', sheet:true, title:'Calibration sticker',
+        text:'CALIBRATION RECORD\nLast cal: '+fmt(addDays(f==='cal-expired'?-192:-133))+'\nCal due: '+fmt(due)+'\nTech: R. Delgado',
+        verdict: f==='cal-expired' ? 'Cal due date has passed — the monitor is out of its calibration period.' : 'Within calibration period.'};
+    }
+    case 'bump':{
+      if(f==='bump-failed') return {ok:false, sheet:true, title:'Bump test log',
+        text:'BUMP TEST LOG\n'+fmt(TODAY)+'  UNIT 07\nO2 PASS  LEL FAIL\nCO PASS  H2S PASS',
+        verdict:'Today\u2019s bump test failed on the LEL channel. The monitor did not respond correctly to test gas.'};
+      return {ok:true, sheet:true, title:'Bump test log',
+        text:'BUMP TEST LOG\n'+fmt(TODAY)+'  UNIT 07\nO2 PASS  LEL PASS\nCO PASS  H2S PASS',
+        verdict:'Bump test passed today on all four channels.'};
+    }
+  }
+}
+
+/* ================= RENDER: DEVICE ================= */
+function lcdOff(){ $('lcdInner').className='lcd-inner off'; $('lcdInner').innerHTML=''; $('devLight').className='dev-light'; }
+function lcdReadings(){
+  const f=S.fault;
+  const inner=$('lcdInner'); inner.className='lcd-inner';
+  if(f==='selftest-fail'){
+    inner.innerHTML='<div class="lcd-boot lcd-err"><div class="b-big">SENSOR FAULT</div><div class="b-count">E-04</div><div class="b-small">LEL SENSOR FAILED SELF-TEST</div></div>';
+    $('devLight').className='dev-light alarm';
+    return;
+  }
+  const batt = (f==='battery-low')?'▮▯▯▯':'▮▮▮▮';
+  inner.innerHTML =
+   '<div class="lcd-title">FOUR GAS MONITOR</div>'+
+   '<div class="lcd-batt">'+batt+'</div>'+
+   '<div class="lcd-grid">'+
+   '<div class="lcd-cell"><div class="g-name c-o2">O₂</div><div class="g-val">20.9</div><div class="g-unit c-o2">%VOL</div></div>'+
+   '<div class="lcd-cell"><div class="g-name c-lel">LEL</div><div class="g-val">0</div><div class="g-unit c-lel">%LEL</div></div>'+
+   '<div class="lcd-cell"><div class="g-name c-co">CO</div><div class="g-val">0</div><div class="g-unit c-co">ppm</div></div>'+
+   '<div class="lcd-cell"><div class="g-name c-h2s">H₂S</div><div class="g-val">0.0</div><div class="g-unit c-h2s">ppm</div></div>'+
+   '</div>';
+  $('devLight').className='dev-light on';
+}
+function lcdBootSeq(done){
+  const inner=$('lcdInner'); inner.className='lcd-inner';
+  inner.innerHTML='<div class="lcd-boot"><div class="b-big">SELF-TEST</div><div class="b-count" id="bootCount">3</div><div class="b-small">WARMING SENSORS</div></div>';
+  let n=3;
+  const iv=setInterval(()=>{
+    n--;
+    if(n>0){ $('bootCount').textContent=n; }
+    else { clearInterval(iv); lcdReadings(); done(); }
+  },900);
+}
+
+/* ================= FLOW ================= */
+function startMode(mode){
+  S=newState(mode);
+  $('tbMode').textContent = mode==='learn'?'Learn':mode==='practice'?'Practice':'Test';
+  lcdOff();
+  $('sen-lel').classList.remove('damaged','flag');
+  document.querySelectorAll('.sensor').forEach(s=>s.classList.remove('flag'));
+  if(S.fault==='sensor-damaged') $('sen-lel').classList.add('damaged');
+  show('scr-sim');
+  renderPhase();
+}
+function exitToHome(){ show('scr-home'); }
+
+function renderPhase(){
+  $('choiceArea').style.display='none';
+  $('posStage').style.display='none';
+  $('actionArea').style.display='grid';
+  $('holdHint').style.display='none';
+
+  if(S.phase==='checks'){
+    setStep('1/5 · Inspect & verify');
+    if(S.mode==='learn'){ renderLearnCheck(); } else { renderCheckActions(); }
+  }
+  else if(S.phase==='power'){
+    setStep('2/5 · Power on');
+    $('actionArea').innerHTML='';
+    $('holdHint').style.display='block';
+    if(S.mode==='learn'){
+      coach('Power on','Press and hold the <strong>⏻</strong> button on the monitor until it boots.',
+        'Powering on comes <em>after</em> inspection — no point booting a monitor you\u2019re about to reject.', null);
+    } else {
+      coach('Next','Power the monitor on.', null, null);
+    }
+    if(S.mode==='test'){ renderTestExtras(); }
+  }
+  else if(S.phase==='verify'){
+    setStep('3/5 · Verify readiness');
+    renderVerify();
+  }
+  else if(S.phase==='position'){
+    setStep('4/5 · Position it');
+    renderPosition();
+  }
+  else if(S.phase==='alarm'){
+    setStep('5/5 · Check understanding');
+    renderAlarm();
+  }
+}
+
+/* ---------- CHECKS: learn ---------- */
+function renderLearnCheck(){
+  const c = CHECKS[S.learnIdx];
+  coach('Step '+(S.learnIdx+1)+' of 6', 'Tap: <strong>'+c.label+'</strong>.', c.why, null);
+  const area=$('actionArea');
+  area.innerHTML='';
+  const b=document.createElement('button');
+  b.className='act wide'; b.innerHTML=c.label;
+  b.onclick=()=>{ doCheck(c.id, ()=>{ 
+      S.learnIdx++;
+      if(S.learnIdx>=CHECKS.length){ S.phase='power'; setTimeout(renderPhase,1400); }
+      else setTimeout(renderLearnCheck,1400);
+  });};
+  area.appendChild(b);
+}
+
+/* ---------- CHECKS: practice & test ---------- */
+function renderCheckActions(){
+  const area=$('actionArea'); area.innerHTML='';
+  if(S.mode==='practice'){
+    coach('Your move','Complete the full pre-use inspection. Tap each item — any order within the inspection is fine.', null, null);
+  } else {
+    coach('Test','Get this monitor ready for a shift — or take it out of service if it isn\u2019t fit. No hints from here.', null, null);
+  }
+  CHECKS.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='act'; b.id='chk-'+c.id; b.innerHTML=c.label;
+    if(S.checksDone.has(c.id)) b.classList.add('done');
+    b.onclick=()=>{ doCheck(c.id, ()=>{
+        b.classList.add('done');
+        const f=findingFor(c.id);
+        if(!f.ok) b.classList.add('warned');
+        if(S.mode==='practice' && S.checksDone.size===CHECKS.length){ S.phase='power'; setTimeout(renderPhase,1300); }
+    });};
+    area.appendChild(b);
+  });
+  if(S.mode==='test'){ renderTestExtras(area); $('holdHint').style.display='block'; }
+}
+function renderTestExtras(area){
+  area = area || $('actionArea');
+  const rm=document.createElement('button');
+  rm.className='act wide danger'; rm.textContent='Remove from service';
+  rm.onclick=removeFromService;
+  area.appendChild(rm);
+}
+
+function doCheck(id, after){
+  const f=findingFor(id);
+  const chk=CHECKS.find(c=>c.id===id);
+  S.checksDone.add(id);
+  if(id==='sensors'){
+    document.querySelectorAll('.sensor').forEach(s=>s.classList.add('flag'));
+    setTimeout(()=>document.querySelectorAll('.sensor').forEach(s=>s.classList.remove('flag')),1100);
+  }
+  if(f.sheet){
+    $('sheetTitle').textContent=f.title;
+    $('sheetBody').innerHTML='<div class="st-head">UNIT 07</div>'+f.text.replace(/\n/g,'<br>');
+    $('sheetBack').classList.add('open');
+  }
+  const kind = f.ok ? 'good' : 'err';
+  const verdict = f.verdict || f.text;
+  coach(f.ok?'Finding':'Problem found', verdict, (S.mode==='learn')?chk.why:null, kind);
+  after && after();
+}
+function closeSheet(e){ if(e && e.target!==$('sheetBack')) return; $('sheetBack').classList.remove('open'); }
+
+function removeFromService(){
+  S.removedFromService=true;
+  S.phase='alarm';
+  // grade the decision now
+  if(!S.fault){
+    S.errors.push({label:'Removed a good monitor from service', note:'All checks on this unit were normal. Know the difference between "not ready" and "ready".'});
+  } else {
+    const revealer={'cal-expired':'cal','bump-failed':'bump','battery-low':'battery','sensor-damaged':'sensors'}[S.fault];
+    if(revealer && !S.checksDone.has(revealer)){
+      S.errors.push({label:'Right call, incomplete inspection', note:'You tagged it out without completing the check that documents the problem.'});
+    }
+  }
+  renderPhase();
+}
+
+/* ---------- POWER BUTTON (hold) ---------- */
+(function(){
+  const btn=$('pwrBtn'), fill=$('pwrFill');
+  let t0=null, raf=null;
+  const HOLD=1600;
+  function tick(){
+    const p=Math.min(1,(performance.now()-t0)/HOLD);
+    fill.style.height=(p*100)+'%';
+    if(p>=1){ cancel(); firePower(); return; }
+    raf=requestAnimationFrame(tick);
+  }
+  function start(e){ e.preventDefault();
+    if(S.powered || S.phase==='verify' || S.phase==='alarm') return;
+    if(S.mode!=='test' && S.phase!=='power'){
+      if(S.mode==='practice'){ S.practiceMistakes++; coach('Not yet','Finish the full inspection before powering on.', 'If the inspection fails, the monitor never gets powered up — it gets tagged out.', 'err'); }
+      return;
+    }
+    t0=performance.now(); raf=requestAnimationFrame(tick);
+  }
+  function cancel(){ if(raf) cancelAnimationFrame(raf); raf=null; fill.style.height='0%'; }
+  btn.addEventListener('pointerdown',start);
+  btn.addEventListener('pointerup',cancel);
+  btn.addEventListener('pointerleave',cancel);
+  btn.addEventListener('contextmenu',e=>e.preventDefault());
+})();
+
+function firePower(){
+  S.powered=true;
+  if(S.mode==='test' && S.checksDone.size<CHECKS.length){ S.poweredEarly=true; }
+  $('holdHint').style.display='none';
+  $('actionArea').innerHTML='';
+  coach('Booting','Startup self-test running. Watch the screen.', null, null);
+  lcdBootSeq(()=>{
+    S.phase='verify';
+    renderPhase();
+  });
+}
+
+/* ---------- VERIFY ---------- */
+function renderVerify(){
+  $('actionArea').style.display='none';
+  const area=$('choiceArea'); area.style.display='flex'; area.innerHTML='';
+  const learnWhy='Ready means: self-test clean, no error codes, fresh-air readings normal (O₂ ≈ 20.9 %VOL, everything else at zero), battery adequate, cal current, bump passed.';
+  if(S.mode==='learn'){
+    coach('Read the screen','Self-test finished. Based on the display <em>and</em> your inspection findings — is this monitor ready?', learnWhy, null);
+  } else {
+    coach('Decision','Is this monitor ready to use?', null, null);
+  }
+  const mk=(txt,val)=>{ const b=document.createElement('button'); b.className='choice'; b.textContent=txt;
+    b.onclick=()=>verifyChoose(val); area.appendChild(b); };
+  mk('Ready — proceed to wear it','ready');
+  mk('Not ready — remove from service','remove');
+}
+function verifyChoose(val){
+  S.verifyChoice=val;
+  const shouldRemove = !!S.fault;
+  const correct = (val==='remove')===shouldRemove;
+  if(S.mode==='practice' && !correct){
+    S.practiceMistakes++;
+    coach('Look again', shouldRemove?'Something in this routine failed. A monitor with any failed check does not go to work.':'Every check passed and the readings are normal. This one is ready.', null,'err');
+    return;
+  }
+  if(!correct){
+    S.errors.push( shouldRemove
+      ? {label:'Proceeded with a monitor that was not fit for service', note:faultNote()}
+      : {label:'Rejected a monitor that was ready', note:'All checks passed and fresh-air readings were normal.'});
+  }
+  if(val==='remove'){
+    S.removedFromService=true;
+    coach(correct?'Correct call':'Recorded', correct?'This unit comes out of service: '+faultNote():'Choice recorded.', null, correct?'good':'err');
+    S.phase='alarm'; setTimeout(renderPhase,1600);
+  } else {
+    coach(correct?'Ready':'Recorded', correct?'Self-test clean, readings normal, checks passed. Now put it where it belongs.':'Choice recorded.', null, correct?'good':'err');
+    S.phase='position'; setTimeout(renderPhase,1400);
+  }
+}
+function faultNote(){
+  return {
+    'cal-expired':'the calibration due date had passed.',
+    'bump-failed':'today\u2019s bump test failed on the LEL channel.',
+    'battery-low':'the battery was at 1 of 4 bars.',
+    'sensor-damaged':'the LEL sensor port was cracked.',
+    'selftest-fail':'the startup self-test reported a sensor fault (E-04).'
+  }[S.fault] || 'a failed check.';
+}
+
+/* ---------- POSITION ---------- */
+function renderPosition(){
+  $('actionArea').style.display='none';
+  $('posStage').style.display='flex';
+  if(S.mode==='learn'){
+    coach('Wear it right','Tap where the monitor should ride on your body.',
+      'The monitor protects your <em>breathing zone</em> — the air near your nose and mouth. It rides on the front of your upper body, outside clothing, sensors exposed, display visible.', null);
+  } else {
+    coach('Position','Tap where you\u2019ll clip the monitor.', null, null);
+  }
+  document.querySelectorAll('.pos-spot').forEach(g=>{
+    g.classList.remove('hit','miss');
+    g.onclick=()=>posTap(g);
+  });
+}
+function posTap(g){
+  const pos=g.dataset.pos, info=POSITIONS[pos];
+  if(S.posFirstTap===null) S.posFirstTap=pos;
+  if(info.ok){
+    g.classList.add('hit');
+    coach('Correct placement', info.note, null, 'good');
+    document.querySelectorAll('.pos-spot').forEach(x=>x.onclick=null);
+    if(S.mode==='test' && S.posFirstTap!=='chest'){
+      S.errors.push({label:'Wrong placement first', note:POSITIONS[S.posFirstTap].note});
+    }
+    S.phase='alarm'; setTimeout(renderPhase,1900);
+  } else {
+    g.classList.add('miss');
+    S.posMistakes++;
+    if(S.mode==='practice') S.practiceMistakes++;
+    coach('Not there', info.note, null, 'err');
+  }
+}
+
+/* ---------- ALARM QUESTION ---------- */
+function renderAlarm(){
+  $('actionArea').style.display='none';
+  $('posStage').style.display='none';
+  const area=$('choiceArea'); area.style.display='flex'; area.innerHTML='';
+  coach('One more thing', ALARM_Q.q, (S.mode==='learn')?'This is the response the routine exists to enable — a working, well-placed monitor only helps if you act on it instantly.':null, null);
+  ALARM_Q.opts.forEach((o,i)=>{
+    const b=document.createElement('button'); b.className='choice'; b.textContent=o.t;
+    b.onclick=()=>{
+      if(S.alarmFirst===null) S.alarmFirst=i;
+      if(o.ok){
+        coach('Correct', o.fb, null, 'good');
+        if(S.mode==='test' && !ALARM_Q.opts[S.alarmFirst].ok){
+          S.errors.push({label:'Wrong alarm response first', note:ALARM_Q.opts[S.alarmFirst].fb});
+        }
+        area.querySelectorAll('.choice').forEach(x=>x.onclick=null);
+        setTimeout(finish,1900);
+      } else {
+        if(S.mode==='practice') S.practiceMistakes++;
+        coach('No', o.fb, null, 'err');
+      }
+    };
+    area.appendChild(b);
+  });
+}
+
+/* ---------- RESULT ---------- */
+function finish(){
+  if(S.mode==='test'){
+    const missed = CHECKS.filter(c=>!S.checksDone.has(c.id));
+    if(!S.removedFromService && missed.length){
+      missed.forEach(c=>S.errors.push({label:'Skipped: '+c.label.replace(/&amp;/g,'&'), note:c.why}));
+    }
+    if(S.poweredEarly){
+      S.errors.push({label:'Powered on before finishing inspection', note:'Inspection and records come first. A failed inspection means the unit never gets used.'});
+    }
+  }
+  const pass = S.mode==='test' ? S.errors.length===0 : true;
+
+  $('resMode').textContent = ($('tbMode').textContent)+' · Result';
+  const banner=$('resBanner');
+  banner.className='res-banner '+(S.mode==='test' ? (pass?'pass':'fail') : 'pass');
+  $('resBig').textContent = S.mode==='test' ? (pass?'PASS':'FAIL') : 'COMPLETE';
+  $('resSub').textContent =
+    S.mode==='test' ? (S.fault?('Scenario: unit with a hidden problem — '+faultNote()):'Scenario: unit fit for service.')
+    : S.mode==='practice' ? (S.practiceMistakes===0?'Clean run — no blocked moves.':S.practiceMistakes+' corrected mistake'+(S.practiceMistakes>1?'s':'')+' along the way.')
+    : 'Guided walkthrough finished. Try Practice next.';
+
+  const list=$('resList'); list.innerHTML='';
+  if(S.mode==='test'){
+    const rows=[];
+    const missed = CHECKS.filter(c=>!S.checksDone.has(c.id));
+    const guessedOut = S.errors.some(e=>e.label.indexOf('Right call')===0);
+    rows.push({ok:(missed.length===0) || (S.removedFromService && !guessedOut),
+      t:'Pre-use inspection & records',
+      n: guessedOut ? 'Tagged out without running the check that documents the problem.'
+        : missed.length? (S.removedFromService?'Ended early — unit removed from service.':'Missed: '+missed.map(c=>c.label.replace(/&amp;/g,'&')).join(', ')) : 'All six items completed.'});
+    rows.push({ok:!S.poweredEarly, t:'Sequence', n:S.poweredEarly?'Powered on before completing inspection.':'Inspection before power-on.'});
+    const shouldRemove=!!S.fault;
+    rows.push({ok:(S.verifyChoice? (S.verifyChoice==='remove')===shouldRemove : S.removedFromService===shouldRemove),
+      t:'Fit-for-service decision', n: shouldRemove? 'This unit had a problem: '+faultNote() : 'This unit was ready.'});
+    if(!S.removedFromService && S.verifyChoice==='ready'){
+      rows.push({ok:S.posFirstTap==='chest', t:'Placement', n:S.posFirstTap==='chest'?'Breathing zone, first try.':'First tap: '+S.posFirstTap+'.'});
+    }
+    rows.push({ok:S.alarmFirst!==null && ALARM_Q.opts[S.alarmFirst].ok, t:'Alarm response', n:ALARM_Q.opts[1].t+'.'});
+    rows.forEach(r=>addRes(list,r.ok,r.t,r.n));
+  } else {
+    addRes(list,true,'Inspect the monitor','Housing, sensor ports, display, battery.');
+    addRes(list,true,'Verify records','Calibration current, bump test passed.');
+    addRes(list,true,'Power on & self-test','Hold ⏻, watch for errors, confirm fresh-air readings.');
+    addRes(list,true,'Position it','Front of upper body, breathing zone, outside clothing.');
+    addRes(list,true,'Know the alarm response','Stop work, leave, follow site emergency procedures.');
+  }
+
+  $('resRetry').onclick=()=>startMode(S.mode);
+  show('scr-result');
+}
+function addRes(list,ok,t,n){
+  const d=document.createElement('div');
+  d.className='res-item '+(ok?'ok':'bad');
+  d.innerHTML='<span class="ri-mark">'+(ok?'✓':'✗')+'</span><span>'+t+(n?'<div class="ri-note">'+n+'</div>':'')+'</span>';
+  list.appendChild(d);
+}
+</script>
+</body>
+</html>
