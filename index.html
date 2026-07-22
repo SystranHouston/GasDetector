@@ -379,7 +379,7 @@ const CHECKS = [
  {id:'housing', label:'Inspect housing', why:'Cracked or crushed housings can let gas bypass the sensors and break intrinsic-safety ratings.'},
  {id:'sensors', label:'Check sensor ports', why:'A blocked or damaged port can\u2019t sample air — the display can read normal while the sensor sees nothing.'},
  {id:'display', label:'Check display &amp; lens', why:'You have to be able to read it at a glance in the field, through gloves, glare, and grime.'},
- {id:'battery', label:'Check battery charge', why:'A monitor that dies mid-shift protects nobody. It must last the full entry plus margin.'},
+ {id:'battery', label:'Check battery door', why:'Door secured and sealed; charge is verified on the display icon at power-up. A monitor that dies mid-shift protects nobody.'},
  {id:'cal', label:'Check calibration sticker', why:'Sensors drift. Outside the calibration period the readings can\u2019t be trusted, even if they look normal.'},
  {id:'bump', label:'Check bump test record', why:'The bump test proves the sensors actually respond to gas and the alarms actually fire.'}
 ];
@@ -485,7 +485,7 @@ const LEARN_STEPS=[
  {t:'sensors', tap:'Tap the sensor ports.', why:'A blocked or damaged port can\u2019t sample air \u2014 the display can read normal while the sensor sees nothing.'},
  {t:'display', tap:'Tap the screen.', why:'You have to be able to read it at a glance in the field, through gloves, glare, and grime.'},
  {t:'flip', tap:'Tap <strong>\u27f2 Flip unit over</strong> to check the back.', why:null},
- {t:'battery', tap:'Tap the battery door.', why:'A monitor that dies mid-shift protects nobody. It must last the full entry plus margin.'},
+ {t:'battery', tap:'Tap the battery door.', why:'You’re checking the door is secured and sealed. The charge itself is read on the FRONT — the battery icon on the display after power-up. A monitor that dies mid-shift protects nobody.'},
  {t:'cal', tap:'Tap the yellow calibration sticker.', why:'Sensors drift. Outside the calibration period the readings can\u2019t be trusted, even if they look normal.'},
  {t:'bump', tap:'Tap the bump test log.', why:'The bump test proves the sensors actually respond to gas and the alarms actually fire.'},
  {t:'flip', tap:'Flip back to the front.', why:null},
@@ -601,8 +601,7 @@ function findingFor(id){
     case 'display':
       return {ok:true, text:'Display lens clean and uncracked. Readable at arm\u2019s length.'};
     case 'battery':
-      if(f==='battery-low') return {ok:false, text:'Charge indicator: 1 of 4 bars. Not enough for a full shift.'};
-      return {ok:true, text:'Charge indicator: 4 of 4 bars. Adequate for the shift.'};
+      return {ok:true, text:'Battery door secured — latch and seal intact. Actual charge is read from the battery icon on the display once the unit boots.'};
     case 'cal':{
       const due = (f==='cal-expired') ? addDays(-12) : addDays(47);
       return {ok:f!=='cal-expired', sheet:true, title:'Calibration sticker',
@@ -782,7 +781,7 @@ function removeFromService(){
   if(!S.fault){
     S.errors.push({label:'Removed a good monitor from service', note:'All checks on this unit were normal. Know the difference between "not ready" and "ready".'});
   } else {
-    const revealer={'cal-expired':'cal','bump-failed':'bump','battery-low':'battery','sensor-damaged':'sensors'}[S.fault];
+    const revealer={'cal-expired':'cal','bump-failed':'bump','battery-low':'__boot__','sensor-damaged':'sensors'}[S.fault];
     if(revealer && !S.checksDone.has(revealer)){
       S.errors.push({label:'Right call, incomplete inspection', note:'You tagged it out without completing the check that documents the problem.'});
     }
@@ -840,7 +839,7 @@ function firePower(){
 function renderVerify(){
   $('actionArea').style.display='none';
   const area=$('choiceArea'); area.style.display='flex'; area.innerHTML='';
-  const learnWhy='Ready means: self-test clean, no error codes, fresh-air readings normal (O₂ ≈ 20.9 %VOL, everything else at zero), battery adequate, cal current, bump passed.';
+  const learnWhy='Ready means: self-test clean, no error codes, fresh-air readings normal (O₂ ≈ 20.9 %VOL, everything else at zero), battery icon top-right showing adequate charge, cal current, bump passed.';
   if(S.mode==='learn'){
     coach('Read the screen','Self-test finished. Based on the display <em>and</em> your inspection findings — is this monitor ready?', learnWhy, null);
   } else {
@@ -878,7 +877,7 @@ function faultNote(){
   return {
     'cal-expired':'the calibration due date had passed.',
     'bump-failed':'today\u2019s bump test failed on the LEL channel.',
-    'battery-low':'the battery was at 1 of 4 bars.',
+    'battery-low':'the battery icon showed 1 of 4 bars at startup.',
     'sensor-damaged':'the LEL sensor port was cracked.',
     'selftest-fail':'the startup self-test reported a sensor fault (E-04).'
   }[S.fault] || 'a failed check.';
