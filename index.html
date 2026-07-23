@@ -254,7 +254,15 @@ body.fs-mode #actionArea{position:fixed; bottom:8px; left:50%; transform:transla
 body.fs-mode .hold-hint{font-size:14px;}
 
 /* sticker modal */
-.sheet-back{position:fixed; inset:0; background:rgba(25,32,42,.45); display:none; align-items:flex-end; z-index:20;}
+.sheet-back{position:fixed; inset:0; background:rgba(25,32,42,.45); display:none; align-items:flex-end; z-index:50;}
+.gas-card{border-radius:10px; padding:0; overflow:hidden; border:1px solid var(--line);}
+.gas-card .gch{color:#fff; font-family:'Chakra Petch'; font-weight:700; font-size:15px; letter-spacing:.06em; padding:9px 14px;}
+.gas-card ul{margin:0; padding:12px 14px 14px 30px; background:#fff; color:var(--text); font-size:14.5px; line-height:1.55;}
+.gas-card li{margin-bottom:7px;}
+.gas-card li:last-child{margin-bottom:0; font-weight:600;}
+.gc-o2 .gch{background:#3d7bf0;} .gc-lel .gch{background:#e5484d;}
+.gc-co .gch{background:#2f9e38;} .gc-h2s .gch{background:#e8820c;}
+.sensor.pulse{border-radius:50%;}
 .sheet-back.open{display:flex;}
 .sheet{background:var(--panel); border-radius:18px 18px 0 0; width:100%; max-width:460px; margin:0 auto;
   padding:18px 18px 26px; border-top:1px solid var(--line);}
@@ -513,8 +521,42 @@ function gcell(k,name,unit,cls,brMap){
   '<div class="g-val">'+fmtGas(k)+'</div>'+(alm?'<div class="g-alm">'+alm+' ALARM</div>':'<div class="g-unit '+cls+'">'+unit+'</div>')+'</div>';
 }
 
+/* ================= GAS CARDS ================= */
+const GASCARDS={
+ o2:{cls:'gc-o2', title:'O\u2082 \u2014 OXYGEN', lines:[
+  'Normal air is 20.9% oxygen. The screen should sit right there.',
+  'Too LITTLE (below 19.5%): you pass out with no warning \u2014 your body can\u2019t feel low oxygen.',
+  'Too MUCH (above 23.5%): fires start easier and burn hotter.',
+  'Alarms below 19.5% or above 23.5%.']},
+ lel:{cls:'gc-lel', title:'LEL \u2014 COMBUSTIBLE GAS', lines:[
+  'Watches for flammable gas and vapor \u2014 methane, propane, gasoline vapor.',
+  '%LEL means \u201chow close is this air to being able to explode?\u201d 100% = it can ignite.',
+  'Alarms at just 10% LEL \u2014 you leave long before the air can actually burn.']},
+ co:{cls:'gc-co', title:'CO \u2014 CARBON MONOXIDE', lines:[
+  'Comes from engines, heaters, anything that burns. No color. No smell.',
+  'It ties up your blood so it can\u2019t carry oxygen: headache, dizziness, then unconscious.',
+  'Alarms at 35 ppm.']},
+ h2s:{cls:'gc-h2s', title:'H\u2082S \u2014 HYDROGEN SULFIDE', lines:[
+  'The rotten-egg gas \u2014 from crude oil, sour gas, and sewage.',
+  'Its dirty trick: at dangerous levels it kills your sense of SMELL. \u201cThe smell went away\u201d can mean it got worse.',
+  'A few breaths at high concentration can drop you where you stand.',
+  'Alarms at 10 ppm.']}
+};
+function showGasCard(k){
+  const g=GASCARDS[k]; if(!g) return;
+  $('sheetTitle').textContent='';
+  const body=$('sheetBody');
+  body.className='gas-card '+g.cls;
+  body.innerHTML='<div class="gch">'+g.title+'</div><ul>'+g.lines.map(function(l){return '<li>'+l+'</li>';}).join('')+'</ul>';
+  $('sheetBack').classList.add('open');
+}
+
 /* ================= v3: TOUCH TARGETS ================= */
 const LEARN_STEPS=[
+ {t:'gas-o2', tap:'First, meet your four sensors. Tap the <strong>BLUE</strong> ring \u2014 O\u2082, oxygen.', why:null},
+ {t:'gas-lel', tap:'Tap the <strong>RED</strong> ring \u2014 LEL, combustible gas.', why:null},
+ {t:'gas-co', tap:'Tap the <strong>GREEN</strong> ring \u2014 CO, carbon monoxide.', why:null},
+ {t:'gas-h2s', tap:'Tap the <strong>ORANGE</strong> ring \u2014 H\u2082S, hydrogen sulfide.', why:null},
  {t:'housing', tap:'Tap the black housing (the body of the unit).', why:'Cracked or crushed housings can let gas bypass the sensors and break intrinsic-safety ratings.'},
  {t:'sensors', tap:'Tap the sensor ports.', why:'A blocked or damaged port can\u2019t sample air \u2014 the display can read normal while the sensor sees nothing.'},
  {t:'display', tap:'Tap the screen.', why:'You have to be able to read it at a glance in the field, through gloves, glare, and grime.'},
@@ -526,6 +568,7 @@ const LEARN_STEPS=[
  {t:'tag', tap:'See the red <strong>TAG OUT</strong> control below? If any check had failed, that\u2019s the call: the unit comes out of service, no debate. Tap it once to see.', why:null}
 ];
 function elFor(t){
+  if(t.indexOf('gas-')===0) return $('sen-'+t.slice(4));
   if(t==='sensors') return document.querySelector('#device .sensor-grid');
   if(t==='display') return document.querySelector('#device .lcd');
   if(t==='housing') return $('device');
@@ -762,7 +805,7 @@ function renderSimulate(){
   $('holdHint').style.display = S.powered ? 'none' : 'block';
   coach('Demonstrator', S.powered
     ? 'Unit running. <strong>▲▼</strong> cycle screens. Trigger a scenario — crossing a setpoint fires the alarm. The alarm LATCHES: even back in Fresh air it keeps sounding until you short-press <strong>⏻</strong> to reset. Hold <strong>⏻</strong> to shut down.'
-    : 'A working four-gas monitor. Hold the <strong>⏻</strong> button on the unit to power it on. Turn sound on for the full effect.', null, null);
+    : 'A working four-gas monitor. Hold the <strong>⏻</strong> button to power it on. Tap any sensor ring to show the class what that gas does. Turn sound on for the full effect.', null, null);
   const area=$('actionArea'); area.innerHTML=''; area.style.display='block';
   if(!document.body.classList.contains('fs-mode')){
     const fsb=document.createElement('button'); fsb.className='flip-chip'; fsb.style.margin='0 auto 10px';
@@ -815,6 +858,7 @@ function doCheck(id, after){
     setTimeout(()=>document.querySelectorAll('.sensor').forEach(s=>s.classList.remove('flag')),1100);
   }
   if(f.sheet){
+    $('sheetBody').className='sticker';
     $('sheetTitle').textContent=f.title;
     $('sheetBody').innerHTML='<div class="st-head">UNIT 07</div>'+f.text.replace(/\n/g,'<br>');
     $('sheetBack').classList.add('open');
@@ -1095,7 +1139,21 @@ $('battDoor').addEventListener('click', function(e){ e.stopPropagation(); if(S.m
 $('calStk').addEventListener('click', function(e){ e.stopPropagation(); if(S.mode!=='simulate') targetTap('cal'); else keyClick(); });
 $('bumpTag').addEventListener('click', function(e){ e.stopPropagation(); if(S.mode!=='simulate') targetTap('bump'); else keyClick(); });
 function learnWantsHousing(){ return S.mode==='learn' && LEARN_STEPS[S.learnIdx] && LEARN_STEPS[S.learnIdx].t==='housing'; }
-document.querySelector('#device .sensor-grid').addEventListener('click', function(e){ e.stopPropagation(); targetTap(learnWantsHousing()?'housing':'sensors'); });
+document.querySelector('#device .sensor-grid').addEventListener('click', function(e){
+  e.stopPropagation();
+  const sn = e.target.closest('.sensor');
+  const gid = sn ? sn.id.replace('sen-','') : null;
+  if(S.mode==='simulate'){ if(gid){ keyClick(); showGasCard(gid); } return; }
+  if(S.mode==='learn'){
+    const st=LEARN_STEPS[S.learnIdx];
+    if(st && st.t.indexOf('gas-')===0){
+      if(gid && ('gas-'+gid)===st.t){ keyClick(); showGasCard(gid); advanceLearn(); }
+      return;
+    }
+    if(learnWantsHousing()){ targetTap('housing'); return; }
+  }
+  targetTap('sensors');
+});
 document.querySelector('#device .lcd').addEventListener('click', function(e){ e.stopPropagation(); targetTap(learnWantsHousing()?'housing':'display'); });
 $('device').addEventListener('click', function(e){
   if(e.target.closest('.dev-btnrow')) return;
