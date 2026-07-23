@@ -172,6 +172,8 @@ h1{font-family:'Chakra Petch'; font-weight:700; font-size:30px; line-height:1.1;
 .lcd-cell.cell-alarm{background:#f8d2d4; animation:cellBlink .5s steps(2) infinite;}
 .lcd-cell .g-alm{font-family:'Chakra Petch'; font-weight:700; font-size:7.5px; color:#b3242a; text-align:center;}
 @keyframes cellBlink{50%{background:#fceeee;}}
+.lcd-albar{font-family:'Chakra Petch'; font-weight:700; font-size:8px; letter-spacing:.06em; text-align:center;
+  background:#c1272d; color:#fff; border-radius:3px; padding:2px 0; animation:cellBlink .6s steps(2) infinite;}
 .lcd-page-h{font-family:'Chakra Petch'; font-weight:700; font-size:9px; letter-spacing:.1em; text-align:center;
   color:#2a2d33; border-bottom:1px solid #b9beb6; padding-bottom:2px; margin-bottom:3px;}
 .lcd-info{font-family:'IBM Plex Mono'; font-size:9.5px; line-height:1.9; padding:4px 6px; color:#20242a;}
@@ -431,6 +433,12 @@ function beep(freq,dur,vol){ if(!sndOn) return; try{
   o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+(dur||0.08));
 }catch(e){} }
 function keyClick(){ beep(2100,0.03,0.08); }
+function alarmReset(){
+  stopAlarmSound(); G.alarm=false; G.latched=false;
+  $('device').classList.remove('alarming'); $('devLight').className='dev-light on';
+  beep(2600,0.07,0.2); setTimeout(function(){beep(3200,0.09,0.2);},110);
+  if(S.powered && S.mode==='simulate') renderSimLcd();
+}
 function startAlarmSound(){ if(alarmIv) return;
   alarmIv=setInterval(()=>{ beep(3400,0.11,0.3); setTimeout(()=>beep(2700,0.11,0.3),150); },420); }
 function stopAlarmSound(){ if(alarmIv){ clearInterval(alarmIv); alarmIv=null; } }
@@ -445,9 +453,9 @@ const SCN={
  h2s:{label:'H\u2082S release', v:{o2:20.9,lel:0,co:0,h2s:26}},
  lel:{label:'Combustible', v:{o2:20.7,lel:44,co:0,h2s:0}}
 };
-let G={cur:{...FRESH}, tgt:{...FRESH}, peaks:{o2:20.9,lel:0,co:0,h2s:0}, timer:null, page:0, alarm:false, scen:'fresh'};
+let G={cur:{...FRESH}, tgt:{...FRESH}, peaks:{o2:20.9,lel:0,co:0,h2s:0}, timer:null, page:0, alarm:false, latched:false, scen:'fresh'};
 function gasReset(){ stopAlarmSound(); if(G.timer)clearInterval(G.timer);
-  G={cur:{...FRESH},tgt:{...FRESH},peaks:{o2:20.9,lel:0,co:0,h2s:0},timer:null,page:0,alarm:false,scen:'fresh'}; }
+  G={cur:{...FRESH},tgt:{...FRESH},peaks:{o2:20.9,lel:0,co:0,h2s:0},timer:null,page:0,alarm:false,latched:false,scen:'fresh'}; }
 function gasStart(){ if(G.timer)clearInterval(G.timer); G.timer=setInterval(gasTick,260); }
 function gasTick(){
   ['o2','lel','co','h2s'].forEach(k=>{
@@ -457,8 +465,12 @@ function gasTick(){
   G.peaks.lel=Math.max(G.peaks.lel,G.cur.lel); G.peaks.co=Math.max(G.peaks.co,G.cur.co);
   G.peaks.h2s=Math.max(G.peaks.h2s,G.cur.h2s); G.peaks.o2=Math.min(G.peaks.o2,G.cur.o2);
   const br=breaches();
-  if(br.length && !G.alarm){ G.alarm=true; $('device').classList.add('alarming'); $('devLight').className='dev-light alarm'; startAlarmSound(); }
-  if(!br.length && G.alarm){ G.alarm=false; $('device').classList.remove('alarming'); $('devLight').className='dev-light on'; stopAlarmSound(); }
+  if(br.length){
+    G.latched=false;
+    if(!G.alarm){ G.alarm=true; $('device').classList.add('alarming'); $('devLight').className='dev-light alarm'; startAlarmSound(); }
+  } else if(G.alarm && !G.latched){
+    G.latched=true;
+  }
   if(S.powered && S.mode==='simulate') renderSimLcd();
 }
 function breaches(){
@@ -476,7 +488,8 @@ function renderSimLcd(){
   const inner=$('lcdInner'); inner.className='lcd-inner';
   const brMap={}; breaches().forEach(p=>brMap[p[0]]=p[1]);
   if(G.page===0){
-    inner.innerHTML='<div class="lcd-title">FOUR GAS MONITOR</div><div class="lcd-batt">\u25ae\u25ae\u25ae\u25ae</div>'+
+    const bar = G.alarm ? '<div class="lcd-albar">'+(G.latched?'CLEARED \u2014 PRESS \u23fb TO RESET':'GAS ALARM \u2014 EVACUATE')+'</div>' : '<div class="lcd-title">FOUR GAS MONITOR</div>';
+    inner.innerHTML=bar+'<div class="lcd-batt">\u25ae\u25ae\u25ae\u25ae</div>'+
     '<div class="lcd-grid">'+gcell('o2','O\u2082','%VOL','c-o2',brMap)+gcell('lel','LEL','%LEL','c-lel',brMap)+
     gcell('co','CO','ppm','c-co',brMap)+gcell('h2s','H\u2082S','ppm','c-h2s',brMap)+'</div>';
   } else if(G.page===1){
@@ -683,6 +696,7 @@ function startMode(mode){
   if(S.fault==='sensor-damaged') $('sen-lel').classList.add('damaged');
   show('scr-sim');
   renderPhase();
+  if(mode==='simulate') enterFS();
 }
 function exitToHome(){ exitFS(); gasReset(); clearPulse(); show('scr-home'); }
 
@@ -729,7 +743,7 @@ function renderSimulate(){
   setStep('Free play');
   $('holdHint').style.display = S.powered ? 'none' : 'block';
   coach('Demonstrator', S.powered
-    ? 'Unit running. <strong>▲▼</strong> cycle the screens. Trigger a scenario below and watch the readings move — crossing a setpoint fires the alarm. Return to Fresh air to clear it. Hold <strong>⏻</strong> to shut down.'
+    ? 'Unit running. <strong>▲▼</strong> cycle screens. Trigger a scenario — crossing a setpoint fires the alarm. The alarm LATCHES: even back in Fresh air it keeps sounding until you short-press <strong>⏻</strong> to reset. Hold <strong>⏻</strong> to shut down.'
     : 'A working four-gas monitor. Hold the <strong>⏻</strong> button on the unit to power it on. Turn sound on for the full effect.', null, null);
   const area=$('actionArea'); area.innerHTML=''; area.style.display='block';
   if(!document.body.classList.contains('fs-mode')){
@@ -813,13 +827,14 @@ function removeFromService(){
   const btn=$('pwrBtn'), fill=$('pwrFill');
   let t0=null, raf=null;
   const HOLD=1600;
+  let pressFired=false;
   function tick(){
     const p=Math.min(1,(performance.now()-t0)/HOLD);
     fill.style.height=(p*100)+'%';
-    if(p>=1){ cancel(); firePower(); return; }
+    if(p>=1){ pressFired=true; cancel(); firePower(); return; }
     raf=requestAnimationFrame(tick);
   }
-  function start(e){ e.preventDefault(); keyClick();
+  function start(e){ e.preventDefault(); keyClick(); pressFired=false;
     if(S.mode==='simulate'){ t0=performance.now(); raf=requestAnimationFrame(tick); return; }
     if(S.powered || S.phase==='verify' || S.phase==='alarm') return;
     if(S.mode!=='test' && S.phase!=='power'){
@@ -828,7 +843,16 @@ function removeFromService(){
     }
     t0=performance.now(); raf=requestAnimationFrame(tick);
   }
-  function cancel(){ if(raf) cancelAnimationFrame(raf); raf=null; fill.style.height='0%'; }
+  function cancel(){
+    if(raf) cancelAnimationFrame(raf); raf=null; fill.style.height='0%';
+    if(!pressFired && t0 && (performance.now()-t0)<350 && S.mode==='simulate' && S.powered){
+      if(G.alarm){
+        if(G.latched){ alarmReset(); }
+        else { beep(1700,0.06,0.15); }
+      }
+    }
+    t0=null;
+  }
   btn.addEventListener('pointerdown',start);
   btn.addEventListener('pointerup',cancel);
   btn.addEventListener('pointerleave',cancel);
@@ -837,6 +861,7 @@ function removeFromService(){
 
 function firePower(){
   if(S.powered && S.mode==='simulate'){
+    if(G.alarm){ beep(1700,0.08,0.2); coach('Alarm active','The unit won\u2019t power down in alarm. Clear the gas (Fresh air), then short-press \u23fb to reset the latched alarm.', null, 'err'); return; }
     S.powered=false; gasReset(); lcdOff(); beep(1600,0.25,0.2); renderSimulate(); return;
   }
   if(S.powered) return;
