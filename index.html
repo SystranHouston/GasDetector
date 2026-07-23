@@ -233,6 +233,19 @@ h1{font-family:'Chakra Petch'; font-weight:700; font-size:30px; line-height:1.1;
 .res-actions{display:flex; gap:10px; margin:20px 0 24px;}
 .res-actions .act{flex:1; justify-content:center; text-align:center;}
 
+
+/* ---------- fullscreen demo mode ---------- */
+body.fs-mode .topbar, body.fs-mode .coach, body.fs-mode .setp, body.fs-mode .flip-chip{display:none;}
+#fsExit{display:none; position:fixed; top:12px; right:12px; z-index:40; width:40px; height:40px;
+  border-radius:50%; background:var(--panel); border:1px solid var(--line); color:var(--muted);
+  font-size:18px; cursor:pointer; align-items:center; justify-content:center;
+  box-shadow:0 2px 8px rgba(20,30,45,.2);}
+body.fs-mode #fsExit{display:flex;}
+body.fs-mode #actionArea{position:fixed; bottom:8px; left:50%; transform:translateX(-50%);
+  width:min(96vw,520px); z-index:35; background:rgba(255,255,255,.93); border:1px solid var(--line);
+  border-radius:14px; padding:8px 8px 2px; box-shadow:0 4px 16px rgba(20,30,45,.18);}
+body.fs-mode .hold-hint{font-size:14px;}
+
 /* sticker modal */
 .sheet-back{position:fixed; inset:0; background:rgba(25,32,42,.45); display:none; align-items:flex-end; z-index:20;}
 .sheet-back.open{display:flex;}
@@ -277,6 +290,7 @@ h1{font-family:'Chakra Petch'; font-weight:700; font-size:30px; line-height:1.1;
 
 <!-- ============ SIM ============ -->
 <section class="screen" id="scr-sim">
+  <button id="fsExit" title="Exit full screen">✕</button>
   <div class="topbar">
     <span class="tb-mode" id="tbMode">Learn</span>
     <span class="tb-step" id="tbStep"></span>
@@ -660,7 +674,7 @@ function lcdBootSeq(done){
 function startMode(mode){
   S=newState(mode);
   $('tbMode').textContent = mode==='simulate'?'Demonstrate':mode==='learn'?'Learn':mode==='practice'?'Practice':'Test';
-  gasReset(); clearPulse();
+  gasReset(); clearPulse(); exitFS();
   $('flipper').classList.remove('flipped');
   $('device').classList.remove('alarming');
   lcdOff();
@@ -670,7 +684,7 @@ function startMode(mode){
   show('scr-sim');
   renderPhase();
 }
-function exitToHome(){ gasReset(); clearPulse(); show('scr-home'); }
+function exitToHome(){ exitFS(); gasReset(); clearPulse(); show('scr-home'); }
 
 function renderPhase(){
   $('choiceArea').style.display='none';
@@ -718,6 +732,10 @@ function renderSimulate(){
     ? 'Unit running. <strong>▲▼</strong> cycle the screens. Trigger a scenario below and watch the readings move — crossing a setpoint fires the alarm. Return to Fresh air to clear it. Hold <strong>⏻</strong> to shut down.'
     : 'A working four-gas monitor. Hold the <strong>⏻</strong> button on the unit to power it on. Turn sound on for the full effect.', null, null);
   const area=$('actionArea'); area.innerHTML=''; area.style.display='block';
+  if(!document.body.classList.contains('fs-mode')){
+    const fsb=document.createElement('button'); fsb.className='flip-chip'; fsb.style.margin='0 auto 10px';
+    fsb.textContent='⛶ Full-screen demo'; fsb.onclick=enterFS; area.appendChild(fsb);
+  }
   const row=document.createElement('div'); row.className='chip-row';
   Object.keys(SCN).forEach(k=>{
     const c=document.createElement('button'); c.className='chip'+(G.scen===k?' on':''); c.innerHTML=SCN[k].label;
@@ -1001,6 +1019,28 @@ function addRes(list,ok,t,n){
   d.innerHTML='<span class="ri-mark">'+(ok?'✓':'✗')+'</span><span>'+t+(n?'<div class="ri-note">'+n+'</div>'+'':'')+'</span>';
   list.appendChild(d);
 }
+
+
+/* ---------- fullscreen demo ---------- */
+function applyFsScale(){
+  const st=document.querySelector('.stage'); if(!st) return;
+  const sc=Math.min(1.5,(window.innerWidth*0.86)/245);
+  st.style.transform='scale('+sc+')'; st.style.transformOrigin='top center';
+  st.style.marginBottom=(st.getBoundingClientRect().height - st.offsetHeight + 8)+'px';
+}
+function enterFS(){
+  document.body.classList.add('fs-mode');
+  try{ if(document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){}); }catch(e){}
+  applyFsScale();
+}
+function exitFS(){
+  document.body.classList.remove('fs-mode');
+  const st=document.querySelector('.stage'); if(st){ st.style.transform=''; st.style.marginBottom=''; }
+  try{ if(document.fullscreenElement) document.exitFullscreen().catch(function(){}); }catch(e){}
+}
+$('fsExit').addEventListener('click', exitFS);
+window.addEventListener('resize', function(){ if(document.body.classList.contains('fs-mode')) applyFsScale(); });
+document.addEventListener('fullscreenchange', function(){ if(!document.fullscreenElement && document.body.classList.contains('fs-mode')){ document.body.classList.remove('fs-mode'); const st=document.querySelector('.stage'); if(st){st.style.transform='';st.style.marginBottom='';} } });
 
 /* ================= v3: LISTENERS ================= */
 $('flipBtn').addEventListener('click', ()=>targetTap('flip'));
